@@ -1,0 +1,27 @@
+
+app:
+  config:
+    id: "stjamie"
+llm:
+  provider: openai
+  config:
+    model: 'chatgpt-4o-latest'
+    temperature: 0.1
+    max_tokens: 4096
+    top_p: 1
+    stream: true
+# llm:
+#   provider: google
+#   config:
+#     model: gemini-pro
+#     max_tokens: 5000
+#     temperature: 0.1
+#     top_p: 1
+#     stream: false
+
+# embedder:
+#   provider: google
+#   config:
+#     model: 'models/embedding-001'
+#     task_type: "retrieval_document"
+#     title: "Embeddings for Embedchain"
