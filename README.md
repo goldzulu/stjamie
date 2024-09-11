@@ -1,13 +1,11 @@
-# Coinweb AI Dapp Builder
+# St James Senior Girls AI Bot St Jamie!
 
-This Streamlit app serves as an AI-powered assistant for building Coinweb blockchain Dapps. It utilizes the Coinweb Hello World and String Processor templates as starting points for Dapp development.
+This Streamlit app serves as an AI-powered assistant for as a companion for St James Senior Girls AI Club members
 
 ## Features
 
 - Interactive chat interface with an AI assistant
-- Knowledge base built from Coinweb starter templates
 - Ability to add new knowledge sources on the fly
-- Sidebar displaying available templates for reference
 
 ## Prerequisites
 
@@ -40,7 +38,6 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
    - Create a `.streamlit/secrets.toml` file in your project directory
    - Add your tokens:
      ```
-     GHPAT_TOKEN = "your_github_personal_access_token"
      OPENAI_API_KEY = "your_openai_api_key"
      ```
 
@@ -61,40 +58,8 @@ Note: The first time you run the app, it may take some time to start up as it lo
 ## Usage
 
 1. Once the app is running, you'll see a chat interface.
-2. The sidebar displays the templates the AI has learned from and can leverage for Dapp development.
-3. You can ask questions about building Coinweb Dapps, and the AI assistant will provide guidance based on the loaded templates.
-4. Use the `/add <source>` command to add new knowledge sources to the assistant's database.
-
-### Example Questions
-
-Here are some examples of questions you can ask the AI assistant:
-
-1. "I want to create a crowdfunding Dapp. Can you give me the file structure, the files, and relevant code I need to change from the Hello World template?"
-
-2. "How do I implement a token transfer function in my Coinweb Dapp?"
-
-3. "What are the main differences between the Hello World and String Processor templates?"
-
-4. "Can you explain how to deploy a Coinweb Dapp to the testnet?"
-
-5. "How can I add user authentication to my Coinweb Dapp?"
-
-6. "What are some best practices for handling errors in Coinweb smart contracts?"
-
-7. "How do I integrate a front-end framework like React with my Coinweb Dapp?"
-
-Feel free to ask these questions or formulate your own based on your specific Dapp development needs.
-
-## Customization
-
-To add more Coinweb templates or other GitHub repositories:
-
-1. Open the Python file.
-2. Locate the `embedchain_bot()` function.
-3. Add new repositories using the `app.add()` method:
-   ```python
-   app.add("repo:username/repo-name type:repo", data_type="github", loader=loader)
-   ```
+2. You can ask questions about building and Using AI apps, and the AI assistant will provide guidance
+3. Use the `/add <source>` command to add new knowledge sources to the assistant's database.
 
 ## Contributing
 
