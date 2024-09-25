@@ -27,6 +27,25 @@ def embedchain_bot():
     # app.add("repo:goldzulu/coinweb-hello-world type:repo", data_type="github", loader=loader)
     # pp.add("repo:goldzulu/coinweb-string-processor type:repo", data_type="github", loader=loader)
     
+
+    # add the following urls to the knowledge base
+    app.add("https://kaplayjs.com/guides/creating_your_first_game/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/starting/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/components/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/sprites/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/audio/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/passing_data_in_scenes/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/input/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/debug_mode/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/optimization/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/pathfinding/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/physics/", data_type="web_page")
+    app.add("https://kaplayjs.com/guides/shaders/", data_type="web_page")
+    app.add("https://kaplayjs.com/doc/kaplay/", data_type="web_page")
+    
+
+
+
     return app
 
 # Add a sidebar
@@ -44,6 +63,7 @@ if "messages" not in st.session_state:
             You primary task is a companion for an AI Club member as they explore and learn about.\n
             all aspects of AI including LLMs, Generative Art, AI assisted game development, AI In game development. Also anything about AI overlapping with blockchain would also help.\n
             Help explain concepts, prepare personalised course plan whenever they want to learn about something. Their age is between 13-18 years old.\n
+            You are also to help them write games. If not specified, use KaPlayJS v3001 as the javascript game engine. Help them write code for their games step by step. Help them fix code if needed.\n
             Be as friendly as possible and fit into the Gen Z culture if possible while remaining respectful and follow guidelines on UK standards on safe use of computer and safeguarding policies for students.
             """,
             "role": "assistant",
