@@ -1,4 +1,6 @@
 import sys
+import time
+from chromadb.errors import ChromaError  # Change this line
 
 # WARNING: The following two lines are ONLY for Streamlit.
 # Remove them from local install!!
@@ -7,46 +9,125 @@ import sys
 
 import streamlit as st
 import os
-
+from chromadb.config import Settings
 
 # from embedchain import App
 from embedchain.pipeline import Pipeline as App
 
 # from embedchain.loaders.github import GithubLoader
 
+# Initialize session state variables
+if 'db_initialized' not in st.session_state:
+    st.session_state.db_initialized = False
+
+if 'app' not in st.session_state:
+    st.session_state.app = None
+
 @st.cache_resource
 def embedchain_bot():
-    #loader = GithubLoader(
-    #config={
-    #    "token":st.secrets["GHPAT_TOKEN"]
-    #    }
-    #)
-    app = App.from_config(config_path="config.yaml")
+    if st.session_state.app is None:
+        try:
+            app = App.from_config(config_path="config.yaml")
+            # Try to access the database to check if it's properly initialized
+            app.db.get(where={}, limit=1)
+            st.session_state.app = app
+            st.session_state.db_initialized = True
+        except (ChromaError, StopIteration) as e:
+            st.warning(f"Database not properly initialized: {str(e)}. Initializing...")
+            app = App.from_config(config_path="config.yaml")
+            init_database(app)
+            st.session_state.app = app
+            st.session_state.db_initialized = True
+        except Exception as e:
+            st.error(f"Error initializing database: {str(e)}")
+            st.session_state.app = None
+            st.session_state.db_initialized = False
+    return st.session_state.app
+
+def reset_database(app):
+    client = app.db.client
+    collections = client.list_collections()
+    for collection in collections:
+        client.delete_collection(collection.name)
+    return "Database reset successfully. All collections have been deleted."
+
+def init_database(app):
+    # Add the KaPlay sources to the knowledge base
+    sources = [
+        "https://kaplayjs.com/guides/creating_your_first_game/",
+        "https://kaplayjs.com/guides/starting/",
+        "https://kaplayjs.com/guides/components/",
+        "https://kaplayjs.com/guides/sprites/",
+        "https://kaplayjs.com/guides/audio/",
+        "https://kaplayjs.com/guides/passing_data_in_scenes/",
+        "https://kaplayjs.com/guides/input/",
+        "https://kaplayjs.com/guides/debug_mode/",
+        "https://kaplayjs.com/guides/optimization/",
+        "https://kaplayjs.com/guides/pathfinding/",
+        "https://kaplayjs.com/guides/physics/",
+        "https://kaplayjs.com/guides/shaders/",
+        "https://kaplayjs.com/doc/kaplay/"
+    ]
     
-    # Put any github repo you can then refer as templates!
-    # app.add("repo:goldzulu/coinweb-hello-world type:repo", data_type="github", loader=loader)
-    # pp.add("repo:goldzulu/coinweb-string-processor type:repo", data_type="github", loader=loader)
+    total_sources = len(sources)
+    progress_bar = st.progress(0)
+    status_text = st.empty()
     
-
-    # add the following urls to the knowledge base
-    app.add("https://kaplayjs.com/guides/creating_your_first_game/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/starting/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/components/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/sprites/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/audio/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/passing_data_in_scenes/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/input/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/debug_mode/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/optimization/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/pathfinding/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/physics/", data_type="web_page")
-    app.add("https://kaplayjs.com/guides/shaders/", data_type="web_page")
-    app.add("https://kaplayjs.com/doc/kaplay/", data_type="web_page")
+    for i, source in enumerate(sources):
+        status_text.text(f"Initializing database: adding source {i+1} of {total_sources}")
+        try:
+            app.add(source, data_type="web_page")
+        except Exception as e:
+            st.error(f"Error adding source {source}: {str(e)}")
+        progress_bar.progress((i + 1) / total_sources)
+        time.sleep(0.1)  # Small delay to make the progress visible
     
+    progress_bar.empty()
+    return f"Database initialized with {total_sources} KaPlay sources."
 
+def get_source_list(app):
+    try:
+        client = app.db.client
+        collections = client.list_collections()
+        
+        all_sources = []
+        for collection in collections:
+            try:
+                coll = client.get_collection(collection.name)
+                results = coll.get()
+                
+                for i, meta in enumerate(results['metadatas']):
+                    url = meta.get('url', 'No URL available')
+                    if url == 'No URL available':
+                        description = f"Source {i+1}: "
+                        description += f"Type: {meta.get('data_type', 'Unknown')} | "
+                        description += f"Chunk: {meta.get('chunk_id', 'Unknown')} | "
+                        for key, value in meta.items():
+                            if key not in ['url', 'data_type', 'chunk_id']:
+                                description += f"{key}: {value} | "
+                        all_sources.append(description.rstrip(' | '))
+                    else:
+                        all_sources.append(url)
+            except Exception as e:
+                st.error(f"Error accessing collection {collection.name}: {str(e)}")
+        
+        return all_sources
+    except Exception as e:
+        st.error(f"Error retrieving sources: {str(e)}")
+        return []
 
-
-    return app
+# Add this function to handle the help command
+def get_help_message():
+    return """
+    Available commands:
+    /help - Show this help message
+    /add <source> - Add a new source to the knowledge base (e.g., /add https://example.com)
+    /list - List all sources currently in the database
+    /db reset - Reset the database (delete all data)
+    /db init - Initialize the database with default KaPlay sources
+    
+    You can also ask me anything about AI, game development, or related topics!
+    """
 
 # Add a sidebar
 st.sidebar.title("St Jamie")
@@ -69,10 +150,11 @@ if "messages" not in st.session_state:
             "role": "assistant",
             "content": """
             Hi! I'm StJamie, your St James Senior Girls AI Club Chatbot companion.\n
-            I will also be your 2nd brain and memory enhancer on anything you want to learn! \n          
-            I can also learn new things regarding coinweb from pdfs, webpages, etc just type\n
-            `/add <source>`.\n\n
-            I will try my best to learn it and help you with it.\n
+            I'm here to help you learn about AI, game development, and more! 🚀\n
+            You can ask me anything, and I'll do my best to assist you.\n
+            To see available commands, type `/help`.\n
+            You can also add new sources to my knowledge base using the `/add` command.\n
+            Let's start exploring the exciting world of AI together!
             """,
         }
     ]
@@ -81,10 +163,36 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("Ask me anything!"):
-    app = embedchain_bot()
+app = embedchain_bot()
 
-    if prompt.startswith("/add"):
+if app is None:
+    st.error("Failed to initialize the application. Please check the logs and try again.")
+    st.stop()
+
+# Check if the database is empty and initialize if needed
+if not st.session_state.db_initialized:
+    st.info("Database is being initialized. Please wait...")
+    init_message = init_database(app)
+    st.success(init_message)
+    st.session_state.db_initialized = True
+
+if prompt := st.chat_input("Ask me anything!"):
+    if not st.session_state.db_initialized:
+        st.warning("Database initialization is still in progress. Please wait and try again.")
+        st.stop()
+
+    if prompt.startswith("/help"):
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        with st.chat_message("assistant"):
+            help_message = get_help_message()
+            st.markdown(help_message)
+            st.session_state.messages.append({"role": "assistant", "content": help_message})
+        st.stop()
+
+    elif prompt.startswith("/add"):
         with st.chat_message("user"):
             st.markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
@@ -97,18 +205,75 @@ if prompt := st.chat_input("Ask me anything!"):
             st.session_state.messages.append({"role": "assistant", "content": f"Added {prompt} to knowledge base!"})
             st.stop()
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    elif prompt.startswith("/list"):
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            message_placeholder.markdown("Fetching the list of sources...")
+            
+            sources = get_source_list(app)
+            if sources:
+                source_list = "\n".join([f"- {source}" for source in sources])
+                response = f"Here's the list of sources currently in the database:\n\n{source_list}"
+            else:
+                response = "The database is currently empty or there was an error retrieving the sources. You may need to initialize the database using '/db init'."
+            
+            message_placeholder.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.stop()
+
+    elif prompt.startswith("/db"):
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Extract the parameter
+        param = prompt.replace("/db", "").strip()
+        
+        if param.lower() == "reset":
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                message_placeholder.markdown("Resetting the database...")
+                
+                reset_message = reset_database(app)
+                
+                message_placeholder.markdown(reset_message)
+                st.session_state.messages.append({"role": "assistant", "content": reset_message})
+                
+                # Reinitialize the app after reset
+                app = embedchain_bot()
+        elif param.lower() == "init":
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                message_placeholder.markdown("Initializing the database...")
+                
+                init_message = init_database(app)
+                
+                message_placeholder.markdown(init_message)
+                st.session_state.messages.append({"role": "assistant", "content": init_message})
+        else:
+            with st.chat_message("assistant"):
+                error_message = "Invalid command. Use '/db reset' to reset the database or '/db init' to initialize it with KaPlay sources."
+                st.markdown(error_message)
+                st.session_state.messages.append({"role": "assistant", "content": error_message})
+        st.stop()
 
     with st.chat_message("assistant"):
         msg_placeholder = st.empty()
         msg_placeholder.markdown("Thinking...")
         full_response = ""
 
-        for response in app.chat(prompt):
-            msg_placeholder.empty()
-            full_response += response
+        try:
+            for response in app.chat(prompt):
+                msg_placeholder.empty()
+                full_response += response
 
-        msg_placeholder.markdown(full_response)
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+            msg_placeholder.markdown(full_response)
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        except Exception as e:
+            error_message = f"An error occurred while processing your request: {str(e)}"
+            msg_placeholder.markdown(error_message)
+            st.session_state.messages.append({"role": "assistant", "content": error_message})
