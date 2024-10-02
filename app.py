@@ -10,6 +10,7 @@ from chromadb.errors import ChromaError  # Change this line
 import streamlit as st
 import os
 from chromadb.config import Settings
+from streamlit.components.v1 import html  # Add this import
 
 # from embedchain import App
 from embedchain.pipeline import Pipeline as App
@@ -132,6 +133,12 @@ def get_help_message():
 # Add a sidebar
 st.sidebar.title("St Jamie")
 st.sidebar.write("Your Friendly AI Club Chatbot!")
+
+# Add the Photo Editor link
+st.sidebar.markdown("---")  # Add a separator
+st.sidebar.markdown("### Tools")
+photo_editor_html = '<a href="https://www.photopea.com/" target="_blank">Photo Editor</a>'
+st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
 
 st.title("St Jamie")
 st.caption("Your Friendly AI Club Chatbot! 🤖")
