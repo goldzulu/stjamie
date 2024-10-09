@@ -4,8 +4,12 @@ from chromadb.errors import ChromaError  # Change this line
 
 # WARNING: The following two lines are ONLY for Streamlit.
 # Remove them from local install!!
-__import__('pysqlite3')
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+try:
+    sys.modules['sqlite3'] = __import__('pysqlite3')
+    sys.modules.pop('pysqlite3')
+except ImportError:
+    # pysqlite3 is not available, do nothing or handle the situation
+    pass
 
 import streamlit as st
 import os
@@ -139,7 +143,7 @@ st.sidebar.markdown("### Tools")
 photo_editor_html = '<a href="https://www.photopea.com/" target="_blank">Photo Editor</a>'
 st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
 
-st.title("St Jamie v1.0")
+st.title("St Jamie v1.2")
 st.caption("Your Friendly AI Club Chatbot! 🤖")
 if "messages" not in st.session_state:
     st.session_state.messages = [
@@ -151,6 +155,10 @@ if "messages" not in st.session_state:
             all aspects of AI including LLMs, Generative Art, AI assisted game development, AI In game development. Also anything about AI overlapping with blockchain would also help.\n
             Help explain concepts, prepare personalised course plan whenever they want to learn about something. Their age is between 13-18 years old.\n
             You are also to help them write games. If not specified, use KaPlayJS v3001 as the javascript game engine. Help them write code for their games step by step. Help them fix code if needed.\n
+            They might want to also explore writing simple webpages. If not specified, produce as much as possible a single page that can be run in a browser and they can copy and paste to any static hosting server.\n
+            Use Tailwind css for css styling unless specified otherwise.\n
+            Any external webpage dependencies needed must be loaded\n
+            from CDN e.g. for tailwind unless specified, use <script src='https://cdn.tailwindcss.com'></script>\n
             Be as friendly as possible and fit into the Gen Z culture if possible while remaining respectful and follow guidelines on UK standards on safe use of computer and safeguarding policies for students.
             """,
             "role": "assistant",
