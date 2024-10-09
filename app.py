@@ -139,7 +139,7 @@ st.sidebar.markdown("### Tools")
 photo_editor_html = '<a href="https://www.photopea.com/" target="_blank">Photo Editor</a>'
 st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
 
-st.title("St Jamie")
+st.title("St Jamie v1.0")
 st.caption("Your Friendly AI Club Chatbot! 🤖")
 if "messages" not in st.session_state:
     st.session_state.messages = [
