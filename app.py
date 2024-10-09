@@ -60,7 +60,6 @@ def init_database(app):
         "https://kaplayjs.com/guides/components/",
         "https://kaplayjs.com/guides/sprites/",
         "https://kaplayjs.com/guides/audio/",
-        "https://kaplayjs.com/guides/passing_data_in_scenes/",
         "https://kaplayjs.com/guides/input/",
         "https://kaplayjs.com/guides/debug_mode/",
         "https://kaplayjs.com/guides/optimization/",
