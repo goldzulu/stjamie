@@ -5,6 +5,9 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
+# Define the version number as a constant
+VERSION = "1.3"
+
 # WARNING: The following two lines are ONLY for Streamlit.
 # Remove them from local install!!
 try:
@@ -182,7 +185,8 @@ st.sidebar.markdown("### Tools")
 photo_editor_html = '<a href="https://www.photopea.com/" target="_blank">Photo Editor</a>'
 st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
 
-st.title("St Jamie v1.2")
+# Update the title to use the VERSION constant
+st.title(f"St Jamie v{VERSION}")
 st.caption("Your Friendly AI Club Chatbot! 🤖")
 if "messages" not in st.session_state:
     st.session_state.messages = [
