@@ -1,6 +1,9 @@
 import sys
 import time
 from chromadb.errors import ChromaError  # Change this line
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # WARNING: The following two lines are ONLY for Streamlit.
 # Remove them from local install!!
@@ -50,13 +53,18 @@ def embedchain_bot():
     return st.session_state.app
 
 def reset_database(app):
-    client = app.db.client
-    collections = client.list_collections()
-    for collection in collections:
-        client.delete_collection(collection.name)
-    return "Database reset successfully. All collections have been deleted."
+    try:
+        client = app.db.client
+        collections = client.list_collections()
+        for collection in collections:
+            client.delete_collection(collection.name)
+        st.session_state.db_initialized = False  # Reset the initialization flag
+        return "Database reset successfully. All collections have been deleted."
+    except Exception as e:
+        return f"Error resetting database: {str(e)}"
 
 def init_database(app):
+    logging.info("Starting init_database function")
     # Add the KaPlay sources to the knowledge base
     sources = [
         "https://kaplayjs.com/guides/creating_your_first_game/",
@@ -77,48 +85,79 @@ def init_database(app):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
+    successful_sources = 0
+    failed_sources = []
+    skipped_sources = []
+    
     for i, source in enumerate(sources):
-        status_text.text(f"Initializing database: adding source {i+1} of {total_sources}")
+        status_text.text(f"Initializing database: processing source {i+1} of {total_sources}")
         try:
+            logging.info(f"Processing source: {source}")
             app.add(source, data_type="web_page")
+            successful_sources += 1
+            st.success(f"Successfully added: {source}")
+            logging.info(f"Successfully added: {source}")
         except Exception as e:
+            failed_sources.append((source, str(e)))
             st.error(f"Error adding source {source}: {str(e)}")
+            logging.error(f"Error adding source {source}: {str(e)}", exc_info=True)
         progress_bar.progress((i + 1) / total_sources)
         time.sleep(0.1)  # Small delay to make the progress visible
     
     progress_bar.empty()
-    return f"Database initialized with {total_sources} KaPlay sources."
+    status_text.empty()
+    
+    summary = f"Database initialization completed.\n"
+    summary += f"Successfully added: {successful_sources}\n"
+    summary += f"Failed to add: {len(failed_sources)}\n"
+    summary += f"Total sources processed: {total_sources}"
+    
+    if failed_sources:
+        st.warning("Some sources failed to add. Check the errors above for details.")
+    
+    logging.info(f"init_database completed. Summary: {summary}")
+    return summary
 
 def get_source_list(app):
+    logging.info("Starting get_source_list function")
     try:
-        client = app.db.client
-        collections = client.list_collections()
+        all_sources = set()  # Use a set to avoid duplicates
         
-        all_sources = []
-        for collection in collections:
-            try:
-                coll = client.get_collection(collection.name)
-                results = coll.get()
-                
-                for i, meta in enumerate(results['metadatas']):
-                    url = meta.get('url', 'No URL available')
-                    if url == 'No URL available':
-                        description = f"Source {i+1}: "
-                        description += f"Type: {meta.get('data_type', 'Unknown')} | "
-                        description += f"Chunk: {meta.get('chunk_id', 'Unknown')} | "
-                        for key, value in meta.items():
-                            if key not in ['url', 'data_type', 'chunk_id']:
-                                description += f"{key}: {value} | "
-                        all_sources.append(description.rstrip(' | '))
-                    else:
-                        all_sources.append(url)
-            except Exception as e:
-                st.error(f"Error accessing collection {collection.name}: {str(e)}")
+        # Get all documents from the database
+        try:
+            logging.info("Attempting to get documents from the database")
+            documents = app.db.get(limit=1000000)  # Set a high limit to get all documents
+            logging.info(f"Retrieved documents from the database: {documents}")
+        except StopIteration:
+            logging.warning("No documents found in the database (StopIteration)")
+            return "The database is currently empty. You may need to initialize the database using '/db init'."
+        except Exception as e:
+            logging.error(f"Error retrieving documents: {str(e)}", exc_info=True)
+            return f"An error occurred while retrieving documents: {str(e)}"
         
-        return all_sources
+        if not documents or 'metadatas' not in documents or not documents['metadatas']:
+            logging.warning("No documents or metadata found in the database")
+            return "The database is currently empty. You may need to initialize the database using '/db init'."
+        
+        # Extract unique URLs from the metadata
+        for metadata in documents['metadatas']:
+            url = metadata.get('url')
+            if url:
+                all_sources.add(url)
+        
+        logging.info(f"Found {len(all_sources)} unique sources")
+        
+        if all_sources:
+            source_list = "\n".join([f"- {source}" for source in sorted(all_sources)])
+            response = f"Here's the list of sources currently in the database:\n\n{source_list}"
+        else:
+            response = "No sources found in the database. You may need to initialize the database using '/db init'."
+        
+        logging.info(f"Returning response: {response[:100]}...")  # Log first 100 characters of response
+        return response
     except Exception as e:
-        st.error(f"Error retrieving sources: {str(e)}")
-        return []
+        logging.error(f"Error in get_source_list: {str(e)}", exc_info=True)
+        return f"An error occurred while retrieving the sources: {str(e)}"
 
 # Add this function to handle the help command
 def get_help_message():
@@ -228,16 +267,11 @@ if prompt := st.chat_input("Ask me anything!"):
             message_placeholder = st.empty()
             message_placeholder.markdown("Fetching the list of sources...")
             
-            sources = get_source_list(app)
-            if sources:
-                source_list = "\n".join([f"- {source}" for source in sources])
-                response = f"Here's the list of sources currently in the database:\n\n{source_list}"
-            else:
-                response = "The database is currently empty or there was an error retrieving the sources. You may need to initialize the database using '/db init'."
+            response = get_source_list(app)
             
             message_placeholder.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
-            st.stop()
+        st.stop()
 
     elif prompt.startswith("/db"):
         with st.chat_message("user"):
@@ -265,6 +299,11 @@ if prompt := st.chat_input("Ask me anything!"):
                 message_placeholder.markdown("Initializing the database...")
                 
                 init_message = init_database(app)
+                
+                # Reinitialize the app after populating the database
+                st.session_state.app = None
+                st.session_state.db_initialized = False
+                app = embedchain_bot()
                 
                 message_placeholder.markdown(init_message)
                 st.session_state.messages.append({"role": "assistant", "content": init_message})
