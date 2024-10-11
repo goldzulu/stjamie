@@ -176,7 +176,7 @@ def get_help_message():
     """
 
 # Add a sidebar
-st.sidebar.title("St Jamie")
+st.sidebar.title(f"St Jamie v{VERSION}")
 st.sidebar.write("Your Friendly AI Club Chatbot!")
 
 # Add the Photo Editor link
