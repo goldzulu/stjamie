@@ -2,11 +2,13 @@ import sys
 import time
 from chromadb.errors import ChromaError  # Change this line
 import logging
+from openai import OpenAI
+import openai
 
 logging.basicConfig(level=logging.INFO)
 
 # Define the version number as a constant
-VERSION = "1.3"
+VERSION = "1.4"
 
 # WARNING: The following two lines are ONLY for Streamlit.
 # Remove them from local install!!
@@ -33,6 +35,13 @@ if 'db_initialized' not in st.session_state:
 
 if 'app' not in st.session_state:
     st.session_state.app = None
+
+# Add at the top of your file with other constants
+DALLE_DEFAULTS = {
+    "size": "1024x1024", # 1024x1024, 1024x1792, or 1792x1024
+    "quality": "standard", # or hd
+    "style": "vivid",  # or natural
+}
 
 @st.cache_resource
 def embedchain_bot():
@@ -81,7 +90,8 @@ def init_database(app):
         "https://kaplayjs.com/guides/pathfinding/",
         "https://kaplayjs.com/guides/physics/",
         "https://kaplayjs.com/guides/shaders/",
-        "https://kaplayjs.com/doc/kaplay/"
+        "https://kaplayjs.com/doc/kaplay/",
+        "https://kaplayjs.com/doc.json"
     ]
     
     total_sources = len(sources)
@@ -171,6 +181,12 @@ def get_help_message():
     /list - List all sources currently in the database
     /db reset - Reset the database (delete all data)
     /db init - Initialize the database with default KaPlay sources
+    /imagine <prompt> - Generate an image using DALL-E 3
+        Options (add with --option=value):
+        --size=1024x1024, 1024x1792, or 1792x1024
+        --quality=standard or hd
+        --style=vivid or natural
+        Example: /imagine a cute robot --size=512x512 --style=vivid
     
     You can also ask me anything about AI, game development, or related topics!
     """
@@ -187,7 +203,7 @@ st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
 
 # Update the title to use the VERSION constant
 st.title(f"St Jamie v{VERSION}")
-st.caption("Your Friendly AI Club Chatbot! 🤖")
+st.caption("Your Friendly AI Club Chatbot!")
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -208,6 +224,10 @@ if "messages" not in st.session_state:
             "content": """
             Hi! I'm StJamie, your St James Senior Girls AI Club Chatbot companion.\n
             I'm here to help you learn about AI, game development, and more! 🚀\n
+            
+            🎨 **What's New in v1.4:**
+            - I can now generate images using DALL-E 3! Try the `/imagine` command to create amazing AI art.
+            
             You can ask me anything, and I'll do my best to assist you.\n
             To see available commands, type `/help`.\n
             You can also add new sources to my knowledge base using the `/add` command.\n
@@ -216,9 +236,12 @@ if "messages" not in st.session_state:
         }
     ]
 
+# Display messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if "image_url" in message and message["image_url"]:
+            st.image(message["image_url"], use_column_width=True)
 
 app = embedchain_bot()
 
@@ -233,27 +256,97 @@ if not st.session_state.db_initialized:
     st.success(init_message)
     st.session_state.db_initialized = True
 
+def handle_imagine_command(prompt, **kwargs):
+    """
+    Handle the /imagine command with configurable options
+    
+    Options:
+    - size: '1024x1024', '1024x1792', or '1792x1024'
+    - quality: 'standard' or 'hd'
+    - style: 'vivid' or 'natural'
+    """
+    # Extract command options if present
+    parts = prompt.split('--')
+    image_prompt = parts[0].replace("/imagine", "").strip()
+    
+    # Start with default options
+    options = DALLE_DEFAULTS.copy()
+    
+    # Parse additional options if provided
+    if len(parts) > 1:
+        for part in parts[1:]:
+            if "=" in part:
+                key, value = part.strip().split('=')
+                if key in options:
+                    options[key] = value
+    
+    # Override with any kwargs passed directly to the function
+    options.update(kwargs)
+    
+    try:
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        response = client.images.generate(
+            model="dall-e-3",  # Fixed to dall-e-3
+            prompt=image_prompt,
+            size=options["size"],
+            quality=options["quality"],
+            style=options["style"],
+            n=1  # Fixed to 1
+        )
+        
+        if response and response.data:
+            return response.data[0].url
+    except Exception as e:
+        logging.error(f"Error generating image: {str(e)}")
+        return None
+
+# Main chat input handling
 if prompt := st.chat_input("Ask me anything!"):
     if not st.session_state.db_initialized:
         st.warning("Database initialization is still in progress. Please wait and try again.")
         st.stop()
 
-    if prompt.startswith("/help"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-            st.session_state.messages.append({"role": "user", "content": prompt})
+    # Display user message
+    st.chat_message("user").markdown(prompt)
+    
+    # Handle /imagine command
+    if prompt.startswith("/imagine"):
+        message = st.chat_message("assistant")
+        placeholder = message.empty()
         
+        # Show processing message with spinner
+        with placeholder.container():
+            with st.spinner("🎨 Generating your image... This may take up to 30 seconds"):
+                st.markdown("*Processing your request...*")
+                image_url = handle_imagine_command(prompt)
+        
+        if image_url:
+            # Replace placeholder with final content
+            placeholder.markdown("Here's your generated image:")
+            message.image(image_url)
+            
+            # Update session state
+            st.session_state.messages.extend([
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": "Here's your generated image:", "image_url": image_url}
+            ])
+        else:
+            placeholder.markdown("Sorry, I couldn't generate the image. Please try again.")
+            st.session_state.messages.extend([
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": "Sorry, I couldn't generate the image. Please try again."}
+            ])
+        st.stop()
+        
+    # Handle other commands
+    elif prompt.startswith("/help"):
         with st.chat_message("assistant"):
             help_message = get_help_message()
             st.markdown(help_message)
             st.session_state.messages.append({"role": "assistant", "content": help_message})
         st.stop()
-
+    
     elif prompt.startswith("/add"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-            st.session_state.messages.append({"role": "user", "content": prompt})
-        prompt = prompt.replace("/add", "").strip()
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             message_placeholder.markdown("Adding to knowledge base...")
@@ -263,10 +356,6 @@ if prompt := st.chat_input("Ask me anything!"):
             st.stop()
 
     elif prompt.startswith("/list"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-            st.session_state.messages.append({"role": "user", "content": prompt})
-        
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             message_placeholder.markdown("Fetching the list of sources...")
@@ -278,10 +367,6 @@ if prompt := st.chat_input("Ask me anything!"):
         st.stop()
 
     elif prompt.startswith("/db"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-            st.session_state.messages.append({"role": "user", "content": prompt})
-        
         # Extract the parameter
         param = prompt.replace("/db", "").strip()
         
@@ -318,19 +403,15 @@ if prompt := st.chat_input("Ask me anything!"):
                 st.session_state.messages.append({"role": "assistant", "content": error_message})
         st.stop()
 
-    with st.chat_message("assistant"):
-        msg_placeholder = st.empty()
-        msg_placeholder.markdown("Thinking...")
-        full_response = ""
+    else:
+        # Regular chat flow
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        # ... rest of your existing chat code ...
 
-        try:
-            for response in app.chat(prompt):
-                msg_placeholder.empty()
-                full_response += response
-
-            msg_placeholder.markdown(full_response)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-        except Exception as e:
-            error_message = f"An error occurred while processing your request: {str(e)}"
-            msg_placeholder.markdown(error_message)
-            st.session_state.messages.append({"role": "assistant", "content": error_message})
+# Display chat history
+# if st.session_state.messages:
+#     for message in st.session_state.messages:
+#         with st.chat_message(message["role"]):
+#             st.markdown(message["content"])
+#             if "image_url" in message and message["image_url"]:
+#                 st.image(message["image_url"])
