@@ -36,6 +36,9 @@ if 'db_initialized' not in st.session_state:
 if 'app' not in st.session_state:
     st.session_state.app = None
 
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = []
+
 # Add at the top of your file with other constants
 DALLE_DEFAULTS = {
     "size": "1024x1024", # 1024x1024, 1024x1792, or 1792x1024
@@ -406,7 +409,32 @@ if prompt := st.chat_input("Ask me anything!"):
     else:
         # Regular chat flow
         st.session_state.messages.append({"role": "user", "content": prompt})
-        # ... rest of your existing chat code ...
+        
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            message_placeholder.markdown("...")
+            
+            try:
+                # Build context from conversation history
+                context = "\n".join([
+                    f"{msg['role']}: {msg['content']}" 
+                    for msg in st.session_state.messages[-5:]  # Last 5 messages for context
+                    if msg['role'] != 'system'  # Skip system messages
+                ])
+                
+                # Get response from embedchain with context
+                response = app.query(f"Maintain conversation context and remember user details. Be friendly and engaging. If the knowledge base provides relevant information, incorporate it naturally into your response.\nPrevious conversation:\n{context}\n\nCurrent message: {prompt}")
+                
+                # Update placeholder with final response
+                message_placeholder.markdown(response)
+                
+                # Add assistant's response to message history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                
+            except Exception as e:
+                error_message = f"Sorry, I encountered an error: {str(e)}"
+                message_placeholder.markdown(error_message)
+                st.session_state.messages.append({"role": "assistant", "content": error_message})
 
 # Display chat history
 # if st.session_state.messages:
