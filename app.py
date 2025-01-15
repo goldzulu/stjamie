@@ -203,6 +203,8 @@ st.sidebar.markdown("---")  # Add a separator
 st.sidebar.markdown("### Tools")
 photo_editor_html = '<a href="https://www.photopea.com/" target="_blank">Photo Editor</a>'
 st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
+new_year_html = '<a href="https://docs.google.com/document/d/10qVSWeldN4BlTbdb9Sr6uWWXasdq0OXWimuVqcBgflA/edit?usp=sharing" target="_blank">Welcome Back 2025</a>'
+st.sidebar.markdown(new_year_html, unsafe_allow_html=True)
 
 # Update the title to use the VERSION constant
 st.title(f"St Jamie v{VERSION}")
