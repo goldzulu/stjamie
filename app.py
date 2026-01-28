@@ -68,7 +68,19 @@ def embedchain_bot():
             st.session_state.app = app
             st.session_state.db_initialized = True
         except Exception as e:
-            st.error(f"Error initializing database: {str(e)}")
+            error_text = str(e)
+            if "no such column: collections.config_json_str" in error_text:
+                st.warning("Database schema mismatch detected. Resetting database...")
+                reset_chroma_storage()
+                try:
+                    app = App.from_config(config_path="config.yaml")
+                    init_database(app)
+                    st.session_state.app = app
+                    st.session_state.db_initialized = True
+                    return st.session_state.app
+                except Exception as retry_error:
+                    error_text = str(retry_error)
+            st.error(f"Error initializing database: {error_text}")
             st.session_state.app = None
             st.session_state.db_initialized = False
     return st.session_state.app
