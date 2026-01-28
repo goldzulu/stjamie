@@ -115,9 +115,26 @@ def init_database(app):
             st.success(f"Successfully added: {source}")
             logging.info(f"Successfully added: {source}")
         except Exception as e:
-            failed_sources.append((source, str(e)))
-            st.error(f"Error adding source {source}: {str(e)}")
-            logging.error(f"Error adding source {source}: {str(e)}", exc_info=True)
+            error_text = str(e)
+            # Chroma can lose collections on hosted environments; recreate and retry once.
+            if "does not exist" in error_text and "Collection" in error_text:
+                logging.warning(f"Collection missing. Recreating app and retrying: {source}")
+                try:
+                    app = App.from_config(config_path="config.yaml")
+                    st.session_state.app = app
+                    st.session_state.db_initialized = False
+                    app.add(source, data_type="web_page")
+                    successful_sources += 1
+                    st.success(f"Successfully added after retry: {source}")
+                    logging.info(f"Successfully added after retry: {source}")
+                    progress_bar.progress((i + 1) / total_sources)
+                    time.sleep(0.1)
+                    continue
+                except Exception as retry_error:
+                    error_text = str(retry_error)
+            failed_sources.append((source, error_text))
+            st.error(f"Error adding source {source}: {error_text}")
+            logging.error(f"Error adding source {source}: {error_text}", exc_info=True)
         progress_bar.progress((i + 1) / total_sources)
         time.sleep(0.1)  # Small delay to make the progress visible
     
