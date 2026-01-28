@@ -132,6 +132,23 @@ def init_database(app):
                     continue
                 except Exception as retry_error:
                     error_text = str(retry_error)
+            # Schema mismatch can happen after Chroma upgrades; reset and retry once.
+            if "no such column: collections.config_json_str" in error_text:
+                logging.warning(f"Schema mismatch. Resetting database and retrying: {source}")
+                try:
+                    reset_database(app)
+                    app = App.from_config(config_path="config.yaml")
+                    st.session_state.app = app
+                    st.session_state.db_initialized = False
+                    app.add(source, data_type="web_page")
+                    successful_sources += 1
+                    st.success(f"Successfully added after reset: {source}")
+                    logging.info(f"Successfully added after reset: {source}")
+                    progress_bar.progress((i + 1) / total_sources)
+                    time.sleep(0.1)
+                    continue
+                except Exception as retry_error:
+                    error_text = str(retry_error)
             failed_sources.append((source, error_text))
             st.error(f"Error adding source {source}: {error_text}")
             logging.error(f"Error adding source {source}: {error_text}", exc_info=True)
