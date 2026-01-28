@@ -3,6 +3,7 @@ import time
 from chromadb.errors import ChromaError  # Change this line
 import logging
 import base64
+import shutil
 from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +58,11 @@ def embedchain_bot():
             st.session_state.app = app
             st.session_state.db_initialized = True
         except (ChromaError, StopIteration) as e:
-            st.warning(f"Database not properly initialized: {str(e)}. Initializing...")
+            error_text = str(e)
+            if "no such column: collections.config_json_str" in error_text:
+                st.warning("Database schema mismatch detected. Resetting database...")
+                reset_chroma_storage()
+            st.warning(f"Database not properly initialized: {error_text}. Initializing...")
             app = App.from_config(config_path="config.yaml")
             init_database(app)
             st.session_state.app = app
@@ -68,6 +73,12 @@ def embedchain_bot():
             st.session_state.db_initialized = False
     return st.session_state.app
 
+def reset_chroma_storage():
+    db_path = os.path.join(os.getcwd(), "db")
+    if os.path.exists(db_path):
+        shutil.rmtree(db_path)
+    os.makedirs(db_path, exist_ok=True)
+
 def reset_database(app):
     try:
         client = app.db.client
@@ -77,7 +88,12 @@ def reset_database(app):
         st.session_state.db_initialized = False  # Reset the initialization flag
         return "Database reset successfully. All collections have been deleted."
     except Exception as e:
-        return f"Error resetting database: {str(e)}"
+        error_text = str(e)
+        if "no such column: collections.config_json_str" in error_text:
+            reset_chroma_storage()
+            st.session_state.db_initialized = False
+            return "Database reset successfully by rebuilding storage."
+        return f"Error resetting database: {error_text}"
 
 def init_database(app):
     logging.info("Starting init_database function")
