@@ -2,13 +2,13 @@ import sys
 import time
 from chromadb.errors import ChromaError  # Change this line
 import logging
+import base64
 from openai import OpenAI
-import openai
 
 logging.basicConfig(level=logging.INFO)
 
 # Define the version number as a constant
-VERSION = "1.4"
+VERSION = "1.5"
 
 # WARNING: The following two lines are ONLY for Streamlit.
 # Remove them from local install!!
@@ -40,10 +40,11 @@ if 'conversation_history' not in st.session_state:
     st.session_state.conversation_history = []
 
 # Add at the top of your file with other constants
-DALLE_DEFAULTS = {
-    "size": "1024x1024", # 1024x1024, 1024x1792, or 1792x1024
-    "quality": "standard", # or hd
-    "style": "vivid",  # or natural
+IMAGE_DEFAULTS = {
+    "size": "1024x1024",  # 1024x1024, 1536x1024, 1024x1536, or auto
+    "quality": "auto",  # auto, high, medium, or low
+    "output_format": "png",  # png, jpeg, or webp
+    "background": "auto",  # auto, transparent, or opaque
 }
 
 @st.cache_resource
@@ -184,14 +185,29 @@ def get_help_message():
     /list - List all sources currently in the database
     /db reset - Reset the database (delete all data)
     /db init - Initialize the database with default KaPlay sources
-    /imagine <prompt> - Generate an image using DALL-E 3
+    /imagine <prompt> - Generate an image using GPT Image (latest)
         Options (add with --option=value):
-        --size=1024x1024, 1024x1792, or 1792x1024
-        --quality=standard or hd
-        --style=vivid or natural
-        Example: /imagine a cute robot --size=512x512 --style=vivid
+        --size=1024x1024, 1536x1024, 1024x1536, or auto
+        --quality=auto, high, medium, or low
+        --output_format=png, jpeg, or webp
+        --background=auto, transparent, or opaque
+        Example: /imagine a cute robot --size=1024x1536 --quality=high
     
     You can also ask me anything about AI, game development, or related topics!
+    """
+
+def get_imagine_help_message():
+    return """
+    Usage: /imagine <prompt>
+    
+    Options (add with --option=value):
+    --size=1024x1024, 1536x1024, 1024x1536, or auto
+    --quality=auto, high, medium, or low
+    --output_format=png, jpeg, or webp
+    --background=auto, transparent, or opaque
+    
+    Example:
+    /imagine a cute robot --size=1024x1536 --quality=high
     """
 
 # Add a sidebar
@@ -203,8 +219,8 @@ st.sidebar.markdown("---")  # Add a separator
 st.sidebar.markdown("### Tools")
 photo_editor_html = '<a href="https://www.photopea.com/" target="_blank">Photo Editor</a>'
 st.sidebar.markdown(photo_editor_html, unsafe_allow_html=True)
-new_year_html = '<a href="https://docs.google.com/document/d/10qVSWeldN4BlTbdb9Sr6uWWXasdq0OXWimuVqcBgflA/edit?usp=sharing" target="_blank">Welcome Back 2025</a>'
-st.sidebar.markdown(new_year_html, unsafe_allow_html=True)
+ai_studio_html = '<a href="https://aistudio.google.com" target="_blank">Google AI Studio</a>'
+st.sidebar.markdown(ai_studio_html, unsafe_allow_html=True)
 
 # Update the title to use the VERSION constant
 st.title(f"St Jamie v{VERSION}")
@@ -230,8 +246,8 @@ if "messages" not in st.session_state:
             Hi! I'm StJamie, your St James Senior Girls AI Club Chatbot companion.\n
             I'm here to help you learn about AI, game development, and more! 🚀\n
             
-            🎨 **What's New in v1.4:**
-            - I can now generate images using DALL-E 3! Try the `/imagine` command to create amazing AI art.
+            🎨 **What's New in v1.5:**
+            - I can now generate images using the latest GPT Image model! Try the `/imagine` command to create amazing AI art.
             
             You can ask me anything, and I'll do my best to assist you.\n
             To see available commands, type `/help`.\n
@@ -247,6 +263,8 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
         if "image_url" in message and message["image_url"]:
             st.image(message["image_url"], use_column_width=True)
+        if "image_b64" in message and message["image_b64"]:
+            st.image(base64.b64decode(message["image_b64"]), use_column_width=True)
 
 app = embedchain_bot()
 
@@ -266,16 +284,17 @@ def handle_imagine_command(prompt, **kwargs):
     Handle the /imagine command with configurable options
     
     Options:
-    - size: '1024x1024', '1024x1792', or '1792x1024'
-    - quality: 'standard' or 'hd'
-    - style: 'vivid' or 'natural'
+    - size: '1024x1024', '1536x1024', '1024x1536', or 'auto'
+    - quality: 'auto', 'high', 'medium', or 'low'
+    - output_format: 'png', 'jpeg', or 'webp'
+    - background: 'auto', 'transparent', or 'opaque'
     """
     # Extract command options if present
     parts = prompt.split('--')
     image_prompt = parts[0].replace("/imagine", "").strip()
     
     # Start with default options
-    options = DALLE_DEFAULTS.copy()
+    options = IMAGE_DEFAULTS.copy()
     
     # Parse additional options if provided
     if len(parts) > 1:
@@ -291,16 +310,17 @@ def handle_imagine_command(prompt, **kwargs):
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         response = client.images.generate(
-            model="dall-e-3",  # Fixed to dall-e-3
+            model="gpt-image-1.5",
             prompt=image_prompt,
             size=options["size"],
             quality=options["quality"],
-            style=options["style"],
-            n=1  # Fixed to 1
+            output_format=options["output_format"],
+            background=options["background"],
+            n=1
         )
         
         if response and response.data:
-            return response.data[0].url
+            return response.data[0].b64_json
     except Exception as e:
         logging.error(f"Error generating image: {str(e)}")
         return None
@@ -316,6 +336,14 @@ if prompt := st.chat_input("Ask me anything!"):
     
     # Handle /imagine command
     if prompt.startswith("/imagine"):
+        image_prompt = prompt.replace("/imagine", "", 1).strip()
+        if not image_prompt or image_prompt.startswith("--"):
+            with st.chat_message("assistant"):
+                imagine_help = get_imagine_help_message()
+                st.markdown(imagine_help)
+                st.session_state.messages.append({"role": "assistant", "content": imagine_help})
+            st.stop()
+
         message = st.chat_message("assistant")
         placeholder = message.empty()
         
@@ -323,17 +351,17 @@ if prompt := st.chat_input("Ask me anything!"):
         with placeholder.container():
             with st.spinner("🎨 Generating your image... This may take up to 30 seconds"):
                 st.markdown("*Processing your request...*")
-                image_url = handle_imagine_command(prompt)
+                image_b64 = handle_imagine_command(prompt)
         
-        if image_url:
+        if image_b64:
             # Replace placeholder with final content
             placeholder.markdown("Here's your generated image:")
-            message.image(image_url)
+            message.image(base64.b64decode(image_b64))
             
             # Update session state
             st.session_state.messages.extend([
                 {"role": "user", "content": prompt},
-                {"role": "assistant", "content": "Here's your generated image:", "image_url": image_url}
+                {"role": "assistant", "content": "Here's your generated image:", "image_b64": image_b64}
             ])
         else:
             placeholder.markdown("Sorry, I couldn't generate the image. Please try again.")

@@ -2,10 +2,15 @@
 
 This Streamlit app serves as an AI-powered assistant for as a companion for St James Senior Girls AI Club members
 
+## What's New
+
+- v1.5: Image generation now uses the latest GPT Image model (`/imagine` supports size, quality, output format, and background options)
+
 ## Features
 
 - Interactive chat interface with an AI assistant
 - Ability to add new knowledge sources on the fly
+- Image generation via OpenAI GPT Image models (use `/imagine`)
 
 ## Prerequisites
 
@@ -60,6 +65,12 @@ Note: The first time you run the app, it may take some time to start up as it lo
 1. Once the app is running, you'll see a chat interface.
 2. You can ask questions about building and Using AI apps, and the AI assistant will provide guidance
 3. Use the `/add <source>` command to add new knowledge sources to the assistant's database.
+4. Use `/imagine <prompt>` to generate images. Options:
+   - `--size=1024x1024`, `1536x1024`, `1024x1536`, or `auto`
+   - `--quality=auto`, `high`, `medium`, or `low`
+   - `--output_format=png`, `jpeg`, or `webp`
+   - `--background=auto`, `transparent`, or `opaque`
+   - Example: `/imagine a cute robot --size=1024x1536 --quality=high`
 
 ## Contributing
 
