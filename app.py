@@ -4,6 +4,7 @@ from chromadb.errors import ChromaError  # Change this line
 import logging
 import base64
 import shutil
+import sqlite3
 from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +53,7 @@ IMAGE_DEFAULTS = {
 def embedchain_bot():
     if st.session_state.app is None:
         try:
+            ensure_chroma_storage()
             app = App.from_config(config_path="config.yaml")
             # Try to access the database to check if it's properly initialized
             app.db.get(where={}, limit=1)
@@ -73,6 +75,7 @@ def embedchain_bot():
                 st.warning("Database schema mismatch detected. Resetting database...")
                 reset_chroma_storage()
                 try:
+                    ensure_chroma_storage()
                     app = App.from_config(config_path="config.yaml")
                     init_database(app)
                     st.session_state.app = app
@@ -90,6 +93,21 @@ def reset_chroma_storage():
     if os.path.exists(db_path):
         shutil.rmtree(db_path)
     os.makedirs(db_path, exist_ok=True)
+
+def ensure_chroma_storage():
+    db_path = os.path.join(os.getcwd(), "db")
+    sqlite_path = os.path.join(db_path, "chroma.sqlite3")
+    if not os.path.exists(sqlite_path):
+        return
+    try:
+        with sqlite3.connect(sqlite_path) as conn:
+            cursor = conn.execute("PRAGMA table_info(collections);")
+            columns = {row[1] for row in cursor.fetchall()}
+        if "config_json_str" not in columns:
+            reset_chroma_storage()
+    except Exception:
+        # If we cannot inspect the schema, rebuild storage defensively.
+        reset_chroma_storage()
 
 def reset_database(app):
     try:
